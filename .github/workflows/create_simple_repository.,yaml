@@ -1,0 +1,52 @@
+name: Create-Simple-Repository
+on:
+  workflow_dispatch:
+    inputs:
+        repoName:
+          description: 'Enter New Repository Name'
+          required: true
+          default: 'REPOSITORY_NAME'
+        codeOwners:
+          description: "Enter Github Usernames for Codeowners"
+          required: true
+          default: "ENTER_CODEOWNER"
+        teamName:
+          description: "Enter Team Description"
+          required: true
+          default: "TEAMNAME_DESCRIPTION"
+env:
+  TOKEN: ${{ secrets.GIT_TOKEN }}
+  REPONAME: ${{ github.event.inputs.repoName }}
+  CODEOWNER: ${{ github.event.inputs.codeOwners }}
+  EMAIL: ${{ secrets.GIT_EMAIL }}
+  USER: ${{ secrets.GIT_USER }}
+  TEAM: ${{ github.event.inputs.teamName }}
+  DEVOPS_CORETEAM: "${{ secrets.DEVOPS_CORETEAM_ID }}"
+  ORG: "mondelez-d4gv"
+  
+jobs:
+  Simple-Repo-Creation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 2
+    - name: Create Simple Repository
+      run: |
+        set -x
+        curl -H "Authorization: token $TOKEN" --data '{"name": "'"$REPONAME"'", "private": true }' https://api.github.com/orgs/$ORG/repos && \
+        cd .. && mkdir $REPONAME && cd $REPONAME && git init && echo "@$CODEOWNER" >> CODEOWNERS
+        git config --global user.email $EMAIL && git config --global user.name $USER
+        git add CODEOWNERS && git commit -m "first commit" && git remote add origin https://github.com/$ORG/$REPONAME.git 
+        git remote set-url origin https://$USER:$TOKEN@github.com/$ORG/$REPONAME.git && git push -u origin master
+        git checkout -b release && git push --set-upstream origin release
+        git checkout -b development && git push --set-upstream origin development
+        curl -H "Authorization: token $TOKEN" -X POST https://api.github.com/orgs/$ORG/teams -d '{"name": "'"$REPONAME-write"'", "description":"'"$TEAM"'", "privacy":"closed", "maintainers": ["'"$CODEOWNER"'"], "permission": "push", "repo_names":["'"mondelez-d4gv/$REPONAME"'"]}'
+        curl -H "Authorization: token $TOKEN" -X PUT  https://api.github.com/teams/$DEVOPS_CORETEAM/repos/$ORG/$REPONAME -d '{ "permission":"admin" }'
+        curl -H "Authorization: token $TOKEN" -X PUT https://api.github.com/repos/$ORG/$REPONAME/branches/master/protection -d '{"required_status_checks": null,"enforce_admins": null,"required_pull_request_reviews" : {"dismissal_restrictions": {},"dismiss_stale_reviews": false,"require_code_owner_reviews": true,"required_approving_review_count": 2},"restrictions":null}'
+        curl -H "Authorization: token $TOKEN" -X PUT https://api.github.com/repos/$ORG/$REPONAME/branches/release/protection -d '{"required_status_checks": null,"enforce_admins": null,"required_pull_request_reviews" : {"dismissal_restrictions": {},"dismiss_stale_reviews": false,"require_code_owner_reviews": true,"required_approving_review_count": 1},"restrictions":null}'
+        echo "New Repository URL: https://github.com/$ORG/${{ github.event.inputs.repoName }}"
