@@ -1,0 +1,43 @@
+name: GitHub-Details
+on:
+  workflow_dispatch:
+    
+jobs:
+  GitHub-Details:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 2
+    
+    - name: Run GitHub API Commands
+      run: |
+         curl -s -H "Authorization: token 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" https://api.github.com/orgs/mondelez-d4gv/teams?page=1 | jq -r '.[] | "\(.name),\(.description)"' >> github_teamname_poc.csv
+         curl -s -H "Authorization: token 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" https://api.github.com/orgs/mondelez-d4gv/teams?page=2 | jq -r '.[] | "\(.name),\(.description)"' >> github_teamname_poc.csv
+         curl -s -H "Authorization: token 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" https://api.github.com/orgs/mondelez-d4gv/teams?page=3 | jq -r '.[] | "\(.name),\(.description)"' >> github_teamname_poc.csv
+         curl -s -H "Authorization: token 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" https://api.github.com/orgs/mondelez-d4gv/teams?page=4 | jq -r '.[] | "\(.name),\(.description)"' >> github_teamname_poc.csv
+         curl -s -H "Authorization: token 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" https://api.github.com/orgs/mondelez-d4gv/teams?page=5 | jq -r '.[] | "\(.name),\(.description)"' >> github_teamname_poc.csv
+         
+         cat github_teamname_poc.csv | cut -d , -f 1 > github_teamnames.csv
+         
+         for i in `cat github_teamnames.csv`; do 
+           curl -s -H "Accept: application/vnd.github+json" -H "Authorization: token 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" https://api.github.com/orgs/mondelez-d4gv/teams/$i/members | jq -r --arg prefix "$i," '$prefix + (map(.login)| join(","))' >> github_teamname_members.csv
+         done
+         
+         for i in `cat github_teamnames.csv`; do
+           curl -s -H "Accept: application/vnd.github+json" -H "Authorization: token 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" https://api.github.com/orgs/mondelez-d4gv/teams/$i/members?role=maintainer | jq -r --arg prefix "$i," '$prefix + (map(.login)| join(","))' >> github_teamname_maintainer.csv
+         done
+         
+         start_time=`date "+%Y.%m.%d-%H.%M.%S"`
+         zip github_team_details_"$start_time".zip github_teamname_poc.csv github_teamname_members.csv github_teamnames.csv github_teamname_maintainer.csv
+            
+    - name: Upload GitHub Team Details
+      uses: actions/upload-artifact@v2
+      with:
+        name: GitHub-TEAM-Details
+        path: github_teamdetails_*.zip
+         
